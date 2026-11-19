@@ -1,0 +1,56 @@
+# PyPSA Denmark: baseline 2025, single node, fixed net imports.
+# Values marked ASSUMPTION are not taken from a downloaded dataset; check and
+# replace them if you have better numbers.
+
+year: 2025
+
+paths:
+  raw: data/raw
+  processed: data/processed
+  results: results
+
+scenario:
+  name: baseline
+  # Multiplies installed wind capacity (same 2025 weather). 1.0 = actual 2025.
+  wind_scale:
+    onshore: 1.0
+    offshore: 1.0
+  solar_scale: 1.0
+
+solver:
+  name: highs
+  options:
+    threads: 4
+
+# Value of lost load: price when demand cannot be met. ASSUMPTION
+voll_eur_per_mwh: 3000
+
+# Fuel prices in EUR per MWh of fuel (thermal).
+# Natural gas comes hourly from Energinet's daily gas price (EEX spot index),
+# so it is not set here.
+fuel_prices:
+  coal: 11.5        # ASSUMPTION: API2 2025 avg ~100 USD/t, 8.14 MWh/t
+  biomass_large: 35 # ASSUMPTION: wood pellets/chips mix for central CHP
+  biomass_small: 25 # ASSUMPTION: wood chips/straw for decentral CHP
+  waste: -10        # ASSUMPTION: gate fee earned, so fuel cost is negative
+  oil: 55           # ASSUMPTION: light fuel oil
+
+# Emission factors, tonnes CO2 per MWh of fuel (Danish Energy Agency standard values).
+emission_factors:
+  coal: 0.341
+  gas: 0.202
+  oil: 0.267
+  biomass_large: 0.0
+  biomass_small: 0.0
+  waste: 0.0        # waste incineration is outside the EU ETS for this purpose
+
+# EU ETS allowance price, EUR/t, monthly averages for 2025. ASSUMPTION:
+# approximate values, replace with exact EEX/ICE monthly averages.
+co2_price_monthly: [78, 75, 68, 65, 70, 73, 70, 71, 76, 78, 80, 82]
+
+# Must-run of combined heat and power (CHP) plants.
+# The floor for each month is this quantile of the actual thermal output in
+# that month: the lowest level thermal plants were held at by heat demand.
+must_run:
+  quantile: 0.05
+  waste_share: 0.85   # waste plants run at this share of capacity first

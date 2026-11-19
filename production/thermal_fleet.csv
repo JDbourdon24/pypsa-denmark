@@ -1,0 +1,10 @@
+group,p_nom_mw,fuel,efficiency,vom_eur_per_mwh,chp,available_until,plants,note
+coal_njv3,410,coal,0.43,3.5,true,,Nordjyllandsværket 3,coal CHP in operation through 2025
+coal_fv7,362,coal,0.40,3.5,true,2025-03-31,Fynsværket 7,ASSUMPTION: unit stops end of March 2025 (Energinet capacity data shows a large-unit drop on 1 April)
+biomass_large,1700,biomass_large,0.38,4.0,true,,"Avedøre 1-2 (biomass), Studstrup 3, Amagerværket 1 and 4, Skærbækværket 3",central wood pellet/chip CHP
+gas_large,600,gas,0.45,2.5,false,,"Avedøre 2 gas, Silkeborg, other central gas",
+oil_gas_reserve,354,oil,0.32,5.0,false,,"Kyndby, Masnedø and other peakers",
+large_closed_q1,296,gas,0.38,3.0,false,2025-03-31,unidentified,ASSUMPTION: rest of the 1 April capacity drop (Energinet data); fuel guessed
+waste_chp,350,waste,0.22,0.0,true,,waste-to-energy CHP (Amager Bakke and others),
+biomass_small,650,biomass_small,0.30,5.0,true,,"decentral wood chip, straw and biogas CHP",
+gas_small,1395,gas,0.40,6.0,true,,"decentral gas engines/turbines and industrial CHP",
