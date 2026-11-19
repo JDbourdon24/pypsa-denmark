@@ -16,6 +16,8 @@ from pathlib import Path
 import pandas as pd
 import pypsa
 
+pypsa.options.api.legacy_string_dtype = True
+
 from config import load_config
 from data.settlement import national_hourly
 from demand.demand import balance_residual, build_demand
@@ -36,6 +38,7 @@ def build_network(cfg: dict) -> tuple[pypsa.Network, dict]:
 
     n = pypsa.Network()
     n.set_snapshots(snapshots)
+    n.add("Carrier", ["AC", "load_shedding"])
     n.add("Bus", "DK", carrier="AC")
     n.add("Load", "demand", bus="DK", p_set=demand)
 
@@ -46,6 +49,7 @@ def build_network(cfg: dict) -> tuple[pypsa.Network, dict]:
               p_max_pu=r["p_max_pu"], marginal_cost=0.0)
 
     fleet = load_fleet()
+    n.add("Carrier", fleet["fuel"].unique())
     avail = availability(fleet, snapshots)
     costs = marginal_costs(cfg, fleet, snapshots)
     p_min = must_run(cfg, fleet, avail, national["thermal"], demand)
@@ -114,6 +118,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     logging.getLogger("linopy").setLevel(logging.WARNING)
     logging.getLogger("pypsa").setLevel(logging.WARNING)
+    logging.getLogger("linopy").setLevel(logging.ERROR)
 
     cfg = load_config()
     if args.wind_scale is not None:
@@ -124,7 +129,8 @@ def main() -> None:
 
     n, inputs = build_network(cfg)
     status, condition = n.optimize(solver_name=cfg["solver"]["name"],
-                                   solver_options=cfg["solver"]["options"])
+                                   solver_options=cfg["solver"]["options"],
+                                   include_objective_constant=False)
     if status != "ok":
         raise RuntimeError(f"optimisation failed: {status} / {condition}")
 
