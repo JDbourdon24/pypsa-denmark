@@ -15,6 +15,8 @@ Planned steps:
 
 ## Run it
 
+Needs Python 3.11 or newer (PyPSA 1.x does not install on older versions).
+
 ```bash
 pip install -r requirements.txt
 ```
