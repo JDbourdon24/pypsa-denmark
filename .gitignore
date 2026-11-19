@@ -1,8 +1,13 @@
+# Raw and processed data are downloaded by data/download.py
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
-results/*
-!results/.gitkeep
+
+# Results: keep the CSV tables, not the solved network file
+results/**/*.nc
+
 __pycache__/
 *.nc
+.venv/
+.DS_Store
