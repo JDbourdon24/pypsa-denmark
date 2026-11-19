@@ -27,6 +27,27 @@ def monthly_capacity(cfg: dict, column: str) -> pd.Series:
     return c.sort_index()
 
 
+def _month_start(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """Start of the Danish-time month for each UTC hour."""
+    local = index.tz_localize("UTC").tz_convert("Europe/Copenhagen")
+    return local.tz_localize(None).to_period("M").to_timestamp()
+
+
+def installed_capacity_hourly(cfg: dict, index: pd.DatetimeIndex) -> pd.DataFrame:
+    """Installed capacity (MW) in force in each hour, from the monthly Energinet data."""
+    month_start = _month_start(index)
+    return pd.DataFrame({
+        carrier: monthly_capacity(cfg, column).reindex(month_start).to_numpy()
+        for carrier, column in CAPACITY_COLUMNS.items()
+    }, index=index)
+
+
+def capacity_factors(cfg: dict, national: pd.DataFrame) -> pd.DataFrame:
+    """Hourly capacity factor: actual output / capacity installed that month."""
+    cap = installed_capacity_hourly(cfg, national.index)
+    return national[list(CAPACITY_COLUMNS)] / cap
+
+
 def build_renewables(cfg: dict, national: pd.DataFrame) -> dict[str, dict]:
     """Return {carrier: {"p_nom": MW, "p_max_pu": Series}} for onshore, offshore, solar.
 
@@ -39,20 +60,14 @@ def build_renewables(cfg: dict, national: pd.DataFrame) -> dict[str, dict]:
         "offshore": cfg["scenario"]["wind_scale"]["offshore"],
         "solar": cfg["scenario"]["solar_scale"],
     }
-    # Capacity is reported at the start of each month; map each hour to its month.
-    # Hours are UTC; the first hour (31 Dec 23:00 UTC) belongs to January in Danish time.
-    local_month = national.index.tz_localize("UTC").tz_convert("Europe/Copenhagen")
-    month_start = local_month.tz_localize(None).to_period("M").to_timestamp()
-
+    cf = capacity_factors(cfg, national)
     out = {}
     for carrier, column in CAPACITY_COLUMNS.items():
-        cap = monthly_capacity(cfg, column)
-        cap_hourly = pd.Series(cap.reindex(month_start).to_numpy(), index=national.index)
-        p_nom = float(cap.iloc[-1])
+        p_nom = float(monthly_capacity(cfg, column).iloc[-1])
         p_max_pu = (national[carrier] / p_nom).clip(lower=0.0, upper=1.0)
         out[carrier] = {
             "p_nom": p_nom * scale[carrier],
             "p_max_pu": p_max_pu,
-            "capacity_factor": float((national[carrier] / cap_hourly).mean()),
+            "capacity_factor": float(cf[carrier].mean()),
         }
     return out

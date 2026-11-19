@@ -33,6 +33,67 @@ Figures are in [`figures/baseline/`](figures/baseline/). Key numbers are in
 | Wind capture price (what wind earned per MWh) | 69.0 €/MWh, 85% of average |
 | Solar capture price | 51.0 €/MWh, 62% of average |
 
+## 0. Wind and solar production: how it is calculated
+
+Wind and solar are **not simulated from weather data**. The model uses what
+actually happened in 2025:
+
+1. **Hourly output:** measured production from Energinet's
+   `ProductionConsumptionSettlement` dataset, summed over DK1 and DK2:
+   - onshore wind = `OnshoreWindLt50kW_MWh` + `OnshoreWindGe50kW_MWh`
+   - offshore wind = `OffshoreWindLt100MW_MWh` + `OffshoreWindGe100MW_MWh`
+   - solar = the three `SolarPower…` size classes + `SolarPowerSelfConMWh`
+     (rooftop solar consumed on site)
+2. **Installed capacity:** Energinet's `CapacityPerMunicipality`, monthly,
+   summed over all municipalities.
+3. **Capacity factor** = hourly output ÷ capacity installed that month.
+4. **In the model** (`production/renewables.py`), each technology has a capacity
+   equal to its year-end value × the scenario's scale factor. Its hourly
+   availability is actual output ÷ year-end capacity. With a scale factor of 1,
+   the model can produce exactly the 2025 output and may curtail below it. With
+   `--wind-scale 2`, the same hourly profile is doubled.
+
+The hourly profiles are exported to
+[`figures/baseline/wind_solar_profiles.csv`](figures/baseline/wind_solar_profiles.csv)
+(output in MW, installed capacity and capacity factor, Danish time).
+
+![Wind and solar output](figures/baseline/11_wind_solar_output.png)
+
+| 2025 | Output | Year-end capacity | Capacity factor |
+|---|---|---|---|
+| Onshore wind | 9.8 TWh | 4,878 MW | 23% |
+| Offshore wind | 9.3 TWh | 2,648 MW | 40% |
+| Solar | 4.5 TWh | 4,956 MW (up from 4,150 in January) | 11% |
+
+![Capacity factor heatmaps](figures/baseline/12_capacity_factor_heatmaps.png)
+
+- **Wind is a winter resource.** Offshore runs at 51–55% capacity factor from
+  October to January, against 22–30% in April, July and August. Onshore
+  follows the same pattern at lower levels.
+- **Solar is the mirror image:** 16–20% from April to August, under 3% from
+  November to January, all within roughly 07:00–19:00.
+- **The offshore midday dip from March to August is not weather.** Offshore
+  wind farms stop producing when prices go negative, which happens around
+  midday when solar floods the market. The profiles are therefore *measured
+  output after real-world curtailment*, not the full wind available. This
+  slightly understates offshore potential, which matters for the wind-scaling
+  scenarios. A weather-based profile (e.g. ERA5 / renewables.ninja) would fix
+  it.
+
+![Capacity factor duration curves](figures/baseline/13_capacity_factor_duration.png)
+
+- Offshore wind produces above 50% of capacity in about 3,170 hours a year;
+  onshore only about 980.
+- Solar produces almost nothing (under 1% of capacity) in 52% of the hours of the year, mostly night.
+
+Monthly capacity factors (%):
+
+| | Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Onshore | 30.8 | 22.2 | 26.0 | 13.4 | 21.1 | 26.0 | 14.7 | 16.9 | 22.3 | 27.0 | 25.5 | 29.4 |
+| Offshore | 52.3 | 42.1 | 38.4 | 21.5 | 32.3 | 37.5 | 27.6 | 30.2 | 40.9 | 51.3 | 51.3 | 54.6 |
+| Solar | 2.0 | 5.3 | 12.9 | 16.3 | 20.3 | 19.4 | 18.4 | 17.5 | 13.3 | 6.5 | 2.7 | 1.6 |
+
 ## 1. Dispatch
 
 ![Winter week](figures/baseline/01a_dispatch_winter_week.png)

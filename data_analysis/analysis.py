@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from config import load_config  # noqa: E402
 from data.settlement import national_hourly  # noqa: E402
+from production.renewables import capacity_factors, installed_capacity_hourly  # noqa: E402
 from production.thermal import load_fleet, marginal_costs  # noqa: E402
 
 # ---- style -----------------------------------------------------------------
@@ -78,18 +79,18 @@ def load(scenario: str):
     hourly = pd.read_csv(ROOT / cfg["paths"]["results"] / scenario / "hourly.csv",
                          index_col=0, parse_dates=True)
     national = national_hourly(cfg)
+    fleet = load_fleet()
+    costs = marginal_costs(cfg, fleet, national.index)
+    cf = capacity_factors(cfg, national)
+    cap = installed_capacity_hourly(cfg, national.index)
+
     local = hourly.index.tz_localize("UTC").tz_convert("Europe/Copenhagen").tz_localize(None)
-    hourly.index = local
-    national.index = local
+    for df in (hourly, national, costs, cf, cap):
+        df.index = local
 
     gen = pd.DataFrame({tech: hourly[[f"p_{g}" for g in gens]].sum(axis=1)
                         for tech, gens in GROUPS.items()})
-    fleet = load_fleet()
-    costs = marginal_costs(cfg, fleet, national.index.tz_localize("Europe/Copenhagen",
-                                                                   ambiguous="infer")
-                           .tz_convert("UTC").tz_localize(None))
-    costs.index = local
-    return cfg, hourly, national, gen, fleet, costs
+    return cfg, hourly, national, gen, fleet, costs, cf, cap
 
 
 # ---- figures ---------------------------------------------------------------
@@ -287,9 +288,71 @@ def capture_prices(out, hourly, national) -> pd.DataFrame:
     return df
 
 
+VRE = {"onshore": ("Onshore wind", "#1baf7a"), "offshore": ("Offshore wind", "#2a78d6"),
+       "solar": ("Solar", "#eda100")}
+BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
+
+
+def renewable_output(out, national, cap) -> None:
+    fig, axes = plt.subplots(3, 1, figsize=(11, 7.5), sharex=True, gridspec_kw={"hspace": 0.3})
+    for ax, (key, (name, color)) in zip(axes, VRE.items()):
+        daily = national[key].resample("D").mean()
+        ax.fill_between(national.index, 0, national[key], color=color, alpha=0.18, linewidth=0,
+                        label="Hourly output")
+        ax.plot(daily.index + pd.Timedelta(hours=12), daily, color=color, linewidth=1.6,
+                label="Daily average")
+        ax.plot(cap.index, cap[key], color=INK2, linestyle="--", linewidth=1.2,
+                label="Installed capacity")
+        ax.set_title(f"{name}: {national[key].sum() / 1e6:.1f} TWh, installed "
+                     f"{cap[key].iloc[-1]:,.0f} MW at year end", fontsize=10)
+        ax.set_ylabel("MW")
+        ax.set_ylim(0, None)
+    axes[0].legend(loc="upper left", bbox_to_anchor=(1.01, 1))
+    axes[-1].xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%b"))
+    fig.suptitle("Wind and solar output, 2025 (Energinet measured data)", x=0.01, ha="left",
+                 fontweight="bold", fontsize=11, y=0.95)
+    save(fig, out, "11_wind_solar_output")
+
+
+def capacity_factor_heatmaps(out, cf) -> pd.DataFrame:
+    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blue", BLUE_RAMP)
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2), sharey=True)
+    for ax, (key, (name, _)) in zip(axes, VRE.items()):
+        grid = cf[key].groupby([cf.index.month, cf.index.hour]).mean().unstack() * 100
+        im = ax.imshow(grid.values, aspect="auto", cmap=cmap, vmin=0, vmax=70, origin="upper")
+        ax.set_title(f"{name} (year {cf[key].mean() * 100:.0f}%)", fontsize=10)
+        ax.set_xticks([0, 6, 12, 18, 23])
+        ax.set_xlabel("Hour of day (Danish time)")
+        ax.grid(False)
+    axes[0].set_yticks(range(12), MONTHS)
+    cbar = fig.colorbar(im, ax=axes, fraction=0.02, pad=0.02)
+    cbar.set_label("Average capacity factor (%)", color=INK2)
+    cbar.outline.set_visible(False)
+    fig.suptitle("Capacity factor by month and hour of day, 2025", x=0.01, ha="left",
+                 fontweight="bold", fontsize=11, y=1.0)
+    save(fig, out, "12_capacity_factor_heatmaps")
+    monthly = cf.groupby(cf.index.month).mean() * 100
+    monthly.index = MONTHS
+    return monthly
+
+
+def capacity_factor_duration(out, cf) -> None:
+    fig, ax = plt.subplots(figsize=(9, 4.2))
+    hours = np.arange(1, len(cf) + 1)
+    for key, (name, color) in VRE.items():
+        ax.plot(hours, np.sort(cf[key].values)[::-1] * 100, color=color, label=name)
+    ax.set_xlim(0, len(cf))
+    ax.set_ylim(0, 100)
+    ax.set_xlabel("Hours of the year, sorted from highest to lowest output")
+    ax.set_ylabel("Capacity factor (%)")
+    ax.set_title("Capacity factor duration curves, 2025")
+    ax.legend(loc="upper right")
+    save(fig, out, "13_capacity_factor_duration")
+
+
 # ---- main ------------------------------------------------------------------
 def main(scenario: str = "baseline") -> None:
-    cfg, hourly, national, gen, fleet, costs = load(scenario)
+    cfg, hourly, national, gen, fleet, costs, cf, cap = load(scenario)
     out = Path(__file__).with_name("figures") / scenario
     out.mkdir(parents=True, exist_ok=True)
     print(f"Writing figures to {out.relative_to(ROOT)}")
@@ -307,6 +370,15 @@ def main(scenario: str = "baseline") -> None:
     price_vs_residual(out, hourly, national)
     imports_vs_wind(out, national)
     capture = capture_prices(out, hourly, national)
+    renewable_output(out, national, cap)
+    cf_monthly = capacity_factor_heatmaps(out, cf)
+    capacity_factor_duration(out, cf)
+    cf_monthly.round(1).to_csv(out / "capacity_factors_monthly.csv")
+    profiles = pd.concat([national[list(VRE)].add_suffix("_mw"), cap.add_suffix("_capacity_mw"),
+                          cf.add_suffix("_capacity_factor")], axis=1).round(4)
+    profiles.index.name = "time_danish"
+    profiles.to_csv(out / "wind_solar_profiles.csv")
+    print("\nMonthly capacity factors (%):\n" + cf_monthly.round(1).to_string())
 
     p_act, p_mod = hourly["actual_price"], hourly["model_price"]
     vre = national[["onshore", "offshore", "solar"]].sum(axis=1)
