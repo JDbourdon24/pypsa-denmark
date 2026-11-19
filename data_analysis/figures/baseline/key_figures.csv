@@ -1,0 +1,23 @@
+,value
+consumption_twh,40.512770762895
+wind_share_of_consumption_pct,47.12032570051218
+solar_share_of_consumption_pct,11.141868673381852
+thermal_share_of_consumption_pct,23.338225625801055
+net_import_share_of_consumption_pct,18.300993422087988
+hours_vre_exceeds_consumption,871.0
+hours_net_export,2307.0
+actual_avg_price,81.58421994881155
+model_avg_price,79.7670274841861
+actual_price_std,50.487779776228784
+model_price_std,27.90760399357904
+actual_max_price,583.400024
+actual_min_price,-30.64353909213889
+actual_hours_negative,341.0
+actual_wind_capture_price,69.00382584021355
+actual_solar_capture_price,50.95382764086497
+corr_actual_price_vs_wind,-0.34627445334306023
+corr_net_import_vs_wind,-0.8911426201595546
+model_price_set_by_Coal_hours,4051.0
+model_price_set_by_Biomass_hours,3772.0
+model_price_set_by_Wind/solar surplus (price ≈ 0)_hours,933.0
+model_price_set_by_Waste_hours,4.0
